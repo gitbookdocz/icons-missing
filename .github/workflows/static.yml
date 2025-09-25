@@ -50,6 +50,12 @@ jobs:
           find _book -name "*.html" -type f -exec sed -i \
             's#</head>#<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer"/></head>#' {} \;
 
+      - name: Upload built book as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: gitbook-build
+          path: ./_book
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
