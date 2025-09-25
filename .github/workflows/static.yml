@@ -31,12 +31,7 @@ jobs:
         run: |
           cat > book.json <<'EOF'
           {
-            "plugins": ["-highlight", "fontsettings", "theme-default", "fontawesome"],
-            "pluginsConfig": {
-              "fontawesome": {
-                "version": "6.4.0"
-              }
-            }
+            "plugins": ["-highlight", "fontsettings", "theme-default"]
           }
           EOF
 
@@ -46,7 +41,7 @@ jobs:
       - name: Build GitBook
         run: |
           gitbook build
-          # Add FontAwesome CDN fallback to every HTML page
+          # Inject FontAwesome CDN link into all HTML pages
           find _book -name "*.html" -type f -exec sed -i \
             's#</head>#<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer"/></head>#' {} \;
 
