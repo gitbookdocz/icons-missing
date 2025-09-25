@@ -10,122 +10,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repo
-      - name: Checkout code
+      - name: Checkout repo
         uses: actions/checkout@v3
 
-      # 2. Setup Node.js 10
-      - name: Setup Node.js
+      - name: Setup Node.js 10
         uses: actions/setup-node@v3
         with:
           node-version: '10'
 
-      # 3. Install GitBook CLI
       - name: Install GitBook CLI
         run: |
           npm install -g gitbook-cli
           gitbook fetch 3.2.3
 
-      # 4. Clean unsupported GitBook tags
       - name: Clean unsupported GitBook tags
         run: |
           find . -name "*.md" -type f -print0 | xargs -0 sed -i -E 's/\{\% hint.*\%\}/> **Note:** /g'
           find . -name "*.md" -type f -print0 | xargs -0 sed -i -E 's/\{\% endhint.*\%\}//g'
 
-      # 5. Generate SUMMARY.md (nested, icons, video embeds)
       - name: Generate SUMMARY.md
-        run: |
-          python3 <<'EOF'
-import os, re, json
+        run: python3 .github/scripts/generate_summary.py
 
-fixes = {
-    'book': 'book-open',
-    'download-alt': 'download',
-    'info-circle': 'circle-info',
-    'warning-sign': 'triangle-exclamation',
-    'note': 'sticky-note',
-    'checkmark': 'check',
-    'cross': 'xmark'
-}
-
-def to_embed(url):
-    if not url:
-        return None
-    if 'youtu.be/' in url:
-        vid = url.rsplit('/',1)[1].split('?')[0]
-        return f'https://www.youtube.com/embed/{vid}'
-    m = re.search(r'v=([^&]+)', url)
-    if 'youtube.com/watch' in url and m:
-        return f'https://www.youtube.com/embed/{m.group(1)}'
-    if 'vimeo.com/' in url and 'player.vimeo.com' not in url:
-        vid = url.rsplit('/',1)[1].split('?')[0]
-        return f'https://player.vimeo.com/video/{vid}'
-    return url
-
-summary = ['# Summary', '']
-icon_map = {}
-
-def process_md(file_path):
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-    except UnicodeDecodeError:
-        return
-
-    title_m = re.search(r'^\s*#\s*(.+)', content, re.MULTILINE)
-    title = title_m.group(1).strip() if title_m else os.path.splitext(os.path.basename(file_path))[0]
-
-    icon_match = re.search(r'^[ \t]*icon:[ \t]*["\']?(.+?)["\']?\s*$', content, re.MULTILINE)
-    icon = icon_match.group(1).strip() if icon_match else None
-    if icon:
-        icon = icon.lower().replace(' ','-')
-        if icon in fixes:
-            icon = fixes[icon]
-
-    video_match = re.search(r'^[ \t]*video:[ \t]*["\']?(.+?)["\']?\s*$', content, re.MULTILINE)
-    iframe_match = re.search(r'^[ \t]*iframe:[ \t]*["\']?(.+?)["\']?\s*$', content, re.MULTILINE)
-    embed_url = None
-    if video_match or iframe_match:
-        embed_url = to_embed(video_match.group(1) if video_match else iframe_match.group(1))
-        if embed_url and '<iframe' not in content:
-            if title_m:
-                h = title_m.group(0)
-                new_content = content.replace(h, h + f'\n\n<div class="embed-placeholder" data-embed-src="{embed_url}"></div>\n', 1)
-                try:
-                    with open(file_path, 'w', encoding='utf-8') as fh:
-                        fh.write(new_content)
-                    content = new_content
-                except Exception:
-                    pass
-
-    rel_path = os.path.relpath(file_path, '.')
-    if icon:
-        summary.append(f'* [<i class="fa-solid fa-{icon}"></i> {title}]({rel_path})')
-        icon_map[rel_path] = {'icon': icon}
-        if embed_url:
-            icon_map[rel_path]['video'] = embed_url
-    else:
-        summary.append(f'* [{title}]({rel_path})')
-        if embed_url:
-            icon_map[rel_path] = {'video': embed_url}
-
-# Walk through all folders
-for root, dirs, files in os.walk('.'):
-    files.sort()
-    for file in files:
-        if file.endswith('.md') and file not in ('README.md','SUMMARY.md'):
-            process_md(os.path.join(root, file))
-
-# Save SUMMARY.md
-with open('SUMMARY.md','w', encoding='utf-8') as f:
-    f.write('\n'.join(summary))
-
-os.makedirs('assets', exist_ok=True)
-with open(os.path.join('assets','icon-map.json'),'w', encoding='utf-8') as f:
-    json.dump(icon_map, f, indent=2)
-EOF
-
-      # 6. Create book.json
       - name: Create book.json
         run: |
           cat > book.json <<EOF
@@ -137,7 +42,6 @@ EOF
 }
 EOF
 
-      # 7. Add global CSS
       - name: Add global CSS
         run: |
           mkdir -p styles
@@ -154,11 +58,9 @@ EOF
 .embed-placeholder::after { content:"Video will load..."; opacity:0.75; }
 EOF
 
-      # 8. Install GitBook plugins
       - name: Install GitBook plugins
         run: gitbook install
 
-      # 9. Build GitBook and replace embed placeholders
       - name: Build GitBook
         run: |
           gitbook build
@@ -167,7 +69,6 @@ EOF
           find _book -name "*.html" -type f -exec sed -i \
             's#</head>#<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer"/></head>#' {} \;
 
-      # 10. Deploy to GitHub Pages
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
