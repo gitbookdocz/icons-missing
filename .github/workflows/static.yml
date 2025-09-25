@@ -27,6 +27,60 @@ jobs:
           find . -name "*.md" -type f -print0 | xargs -0 sed -i -E 's/\{\% hint.*\%\}/> **Note:** /g'
           find . -name "*.md" -type f -print0 | xargs -0 sed -i -E 's/\{\% endhint.*\%\}//g'
 
+      - name: Generate SUMMARY.md with icons
+        run: |
+          python3 <<'EOF'
+import os, re, json
+
+md_files = sorted([f for f in os.listdir('.') if f.endswith('.md')])
+summary = ['# Summary', '']
+icon_map = {}
+
+fixes = {
+    'book': 'book-open',
+    'download-alt': 'download',
+    'info-circle': 'circle-info',
+    'warning-sign': 'triangle-exclamation',
+    'note': 'sticky-note',
+    'checkmark': 'check',
+    'cross': 'xmark'
+}
+
+for f in md_files:
+    if f in ('README.md','SUMMARY.md'):
+        continue
+    try:
+        with open(f,'r',encoding='utf-8') as fh:
+            content = fh.read()
+    except UnicodeDecodeError:
+        continue
+
+    title_m = re.search(r'^\s*#\s*(.+)', content, re.MULTILINE)
+    title = title_m.group(1).strip() if title_m else os.path.splitext(f)[0]
+
+    icon_match = re.search(r'^[ \t]*icon:[ \t]*["\']?(.+?)["\']?\s*$', content, re.MULTILINE)
+    icon = icon_match.group(1).strip() if icon_match else None
+    if icon:
+        icon = icon.lower().replace(' ','-')
+        if icon in fixes:
+            icon = fixes[icon]
+
+    # Add to summary
+    if icon:
+        summary.append(f'* [<i class="fa-solid fa-{icon}"></i> {title}]({f})')
+        icon_map[f] = icon
+    else:
+        summary.append(f'* [{title}]({f})')
+
+with open('SUMMARY.md','w',encoding='utf-8') as fh:
+    fh.write('\n'.join(summary))
+
+# Save icon map for reference
+os.makedirs('assets', exist_ok=True)
+with open(os.path.join('assets','icon-map.json'),'w',encoding='utf-8') as fh:
+    json.dump(icon_map, fh, indent=2)
+EOF
+
       - name: Create book.json
         run: |
           cat > book.json <<EOF
