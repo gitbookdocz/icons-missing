@@ -14,7 +14,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2. Setup Node.js 10 (required for GitBook CLI v3)
+      # 2. Setup Node.js 10
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
