@@ -27,13 +27,86 @@ jobs:
           find . -name "*.md" -type f -print0 | xargs -0 sed -i -E 's/\{\% hint.*\%\}/> **Note:** /g'
           find . -name "*.md" -type f -print0 | xargs -0 sed -i -E 's/\{\% endhint.*\%\}//g'
 
+      - name: Generate SUMMARY.md with icons
+        run: |
+          python3 <<'EOF'
+import os, re, json
+
+md_files = sorted([f for f in os.listdir('.') if f.endswith('.md')])
+summary = ['# Summary', '']
+icon_map = {}
+
+fixes = {
+    'book': 'book-open',
+    'download-alt': 'download',
+    'info-circle': 'circle-info',
+    'warning-sign': 'triangle-exclamation',
+    'note': 'sticky-note',
+    'checkmark': 'check',
+    'cross': 'xmark'
+}
+
+for f in md_files:
+    if f in ('README.md','SUMMARY.md'):
+        continue
+    try:
+        with open(f,'r',encoding='utf-8') as fh:
+            content = fh.read()
+    except UnicodeDecodeError:
+        continue
+
+    title_m = re.search(r'^\s*#\s*(.+)', content, re.MULTILINE)
+    title = title_m.group(1).strip() if title_m else os.path.splitext(f)[0]
+
+    icon_match = re.search(r'^[ \t]*icon:[ \t]*["\']?(.+?)["\']?\s*$', content, re.MULTILINE)
+    icon = icon_match.group(1).strip() if icon_match else None
+    if icon:
+        icon = icon.lower().replace(' ','-')
+        if icon in fixes:
+            icon = fixes[icon]
+
+    # Add to summary
+    if icon:
+        summary.append(f'* [<i class="fa-solid fa-{icon}"></i> {title}]({f})')
+        icon_map[f] = icon
+    else:
+        summary.append(f'* [{title}]({f})')
+
+with open('SUMMARY.md','w',encoding='utf-8') as fh:
+    fh.write('\n'.join(summary))
+
+# Save icon map
+os.makedirs('assets', exist_ok=True)
+with open(os.path.join('assets','icon-map.json'),'w',encoding='utf-8') as fh:
+    json.dump(icon_map, fh, indent=2)
+EOF
+
       - name: Create book.json
         run: |
           cat > book.json <<'EOF'
           {
-            "plugins": ["-highlight", "fontsettings", "theme-default"]
+            "plugins": ["-highlight", "fontsettings", "theme-default"],
+            "styles": {
+              "website": "styles/website.css"
+            }
           }
           EOF
+
+      - name: Add global CSS
+        run: |
+          mkdir -p styles
+          cat > styles/website.css <<'EOF'
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
+.markdown-section h1:before,.markdown-section h2:before,.markdown-section h3:before {
+  font-family:"Font Awesome 6 Free"; font-weight:900; margin-right:8px;}
+#book-summary .summary a i,.book-summary .summary a i,.summary a i,.nav a i {
+  font-family:"Font Awesome 6 Free"; font-weight:900; margin-right:8px; display:inline-block; vertical-align:middle;}
+.embed-placeholder {
+  width:100%; min-height:180px; display:flex; align-items:center; justify-content:center;
+  background:#111; color:#fff; border-radius:6px; margin:8px 0;
+}
+.embed-placeholder::after { content:"Video will load..."; opacity:0.75; }
+EOF
 
       - name: Install GitBook plugins
         run: gitbook install
@@ -41,7 +114,7 @@ jobs:
       - name: Build GitBook
         run: |
           gitbook build
-          # Inject FontAwesome CDN link into all HTML pages
+          # Inject FontAwesome CDN fallback in HTML (just in case)
           find _book -name "*.html" -type f -exec sed -i \
             's#</head>#<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer"/></head>#' {} \;
 
