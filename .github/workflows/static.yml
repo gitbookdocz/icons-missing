@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Setup Node.js 10
-        uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
           node-version: '10'
 
@@ -24,62 +24,30 @@ jobs:
 
       - name: Clean unsupported GitBook tags
         run: |
-          # Replace any {% hint ... %} with a Markdown blockquote
-          find . -name "*.md" -type f -print0 | xargs -0 sed -i -E 's/\{\%[[:space:]]*hint[^%]*\%\}/> **INFO:** /g'
-          # Remove {% endhint %}
-          find . -name "*.md" -type f -print0 | xargs -0 sed -i -E 's/\{\%[[:space:]]*endhint[[:space:]]*\%\}//g'
+          find . -name "*.md" -type f -print0 | xargs -0 sed -i -E 's/\{\% hint.*\%\}/> **Note:** /g'
+          find . -name "*.md" -type f -print0 | xargs -0 sed -i -E 's/\{\% endhint.*\%\}//g'
 
-      - name: Generate SUMMARY.md, icons, and embed placeholders
+      - name: Create book.json
         run: |
-          python3 <<'EOF'
-          # (your Python script content goes here, unchanged)
-          EOF
-
-      - name: Create book.json with styles & scripts
-        run: |
-          cat << 'EOF' > book.json
+          cat > book.json <<'EOF'
           {
-            "title": "Your Documentation",
-            "styles": {
-              "website": "styles/website.css"
-            },
-            "plugins": [
-              "-search",
-              "fontsettings",
-              "theme-default"
-            ],
+            "plugins": ["-highlight", "fontsettings", "theme-default", "insert-html"],
             "pluginsConfig": {
-              "fontsettings": {
-                "theme": "white"
+              "insert-html": {
+                "body:end": "<link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css' crossorigin='anonymous' referrerpolicy='no-referrer'/>"
               }
-            },
-            "scripts": [
-              "assets/icon-inject.js"
-            ]
+            }
           }
           EOF
 
-      - name: Add Font Awesome and custom CSS
-        run: |
-          mkdir -p styles
-          cat << 'EOF' > styles/website.css
-          @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
-          .markdown-section h1:before,.markdown-section h2:before,.markdown-section h3:before{
-            font-family:"Font Awesome 6 Free";font-weight:900;margin-right:8px;}
-          #book-summary .summary a i,.book-summary .summary a i,.summary a i,.nav a i{
-            font-family:"Font Awesome 6 Free";font-weight:900;margin-right:8px;display:inline-block;vertical-align:middle;}
-          .embed-placeholder{width:100%;min-height:180px;display:flex;align-items:center;justify-content:center;background:#111;color:#fff;border-radius:6px;margin:8px 0;}
-          .embed-placeholder::after{content:"Video will load...";opacity:0.75;}
-          EOF
+      - name: Install GitBook plugins
+        run: gitbook install
 
       - name: Build GitBook
-        run: |
-          gitbook install --verbose
-          gitbook build --verbose
+        run: gitbook build
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./_book
-          force_orphan: true
