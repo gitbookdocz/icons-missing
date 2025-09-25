@@ -29,7 +29,7 @@ jobs:
 
       - name: Create book.json
         run: |
-          cat > book.json <<'EOF'
+          cat > book.json <<EOF
 {
   "plugins": ["-highlight", "fontsettings", "theme-default"],
   "styles": {
@@ -41,7 +41,7 @@ EOF
       - name: Add global CSS
         run: |
           mkdir -p styles
-          cat > styles/website.css <<'EOF'
+          cat > styles/website.css <<EOF
 @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
 .markdown-section h1:before,.markdown-section h2:before,.markdown-section h3:before {
   font-family:"Font Awesome 6 Free"; font-weight:900; margin-right:8px;}
