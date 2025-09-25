@@ -31,10 +31,10 @@ jobs:
         run: |
           cat > book.json <<'EOF'
           {
-            "plugins": ["-highlight", "fontsettings", "theme-default", "insert-html"],
+            "plugins": ["-highlight", "fontsettings", "theme-default", "fontawesome"],
             "pluginsConfig": {
-              "insert-html": {
-                "body:end": "<link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css' crossorigin='anonymous' referrerpolicy='no-referrer'/>"
+              "fontawesome": {
+                "version": "6.4.0"
               }
             }
           }
@@ -44,7 +44,11 @@ jobs:
         run: gitbook install
 
       - name: Build GitBook
-        run: gitbook build
+        run: |
+          gitbook build
+          # Add FontAwesome CDN fallback to every HTML page
+          find _book -name "*.html" -type f -exec sed -i \
+            's#</head>#<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer"/></head>#' {} \;
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
