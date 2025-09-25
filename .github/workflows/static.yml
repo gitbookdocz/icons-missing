@@ -22,15 +22,17 @@ jobs:
           npm install -g gitbook-cli
           gitbook fetch 3.2.3
 
-      - name: Preprocess Markdown (hints, videos, iframes)
+      - name: Clean unsupported GitBook tags
         run: |
-          find . -name "*.md" -type f -exec sed -i -E 's/{% hint[^%]*%}>/> **INFO:** /g' {} \;
-          find . -name "*.md" -type f -exec sed -i -E 's/{% endhint %}//g' {} \;
+          # Replace any {% hint ... %} with a Markdown blockquote
+          find . -name "*.md" -type f -print0 | xargs -0 sed -i -E 's/\{\%[[:space:]]*hint[^%]*\%\}/> **INFO:** /g'
+          # Remove {% endhint %}
+          find . -name "*.md" -type f -print0 | xargs -0 sed -i -E 's/\{\%[[:space:]]*endhint[[:space:]]*\%\}//g'
 
       - name: Generate SUMMARY.md, icons, and embed placeholders
         run: |
           python3 <<'EOF'
-          # (your Python script stays the same here)
+          # (your Python script content goes here, unchanged)
           EOF
 
       - name: Create book.json with styles & scripts
