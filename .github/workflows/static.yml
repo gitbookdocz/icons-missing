@@ -8,12 +8,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      # 1. Checkout the repository
+      # 1. Checkout repo
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2. Install Node 10 (required for GitBook CLI v3)
+      # 2. Setup Node.js 10 (required for GitBook CLI v3)
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
@@ -25,21 +26,17 @@ jobs:
           npm install -g gitbook-cli
           gitbook fetch 3.2.3
 
-      # 4. Clean unsupported GitBook tags in Markdown
+      # 4. Clean unsupported GitBook tags
       - name: Clean unsupported GitBook tags
         run: |
           find . -name "*.md" -type f -print0 | xargs -0 sed -i -E 's/\{\% hint.*\%\}/> **Note:** /g'
           find . -name "*.md" -type f -print0 | xargs -0 sed -i -E 's/\{\% endhint.*\%\}//g'
 
-      # 5. Generate SUMMARY.md with icons and embed placeholders
+      # 5. Generate SUMMARY.md (nested, icons, video embeds)
       - name: Generate SUMMARY.md
         run: |
           python3 <<'EOF'
 import os, re, json
-
-md_files = sorted([f for f in os.listdir('.') if f.endswith('.md')])
-summary = ['# Summary', '']
-icon_map = {}
 
 fixes = {
     'book': 'book-open',
@@ -65,17 +62,18 @@ def to_embed(url):
         return f'https://player.vimeo.com/video/{vid}'
     return url
 
-for f in md_files:
-    if f in ('README.md','SUMMARY.md'):
-        continue
+summary = ['# Summary', '']
+icon_map = {}
+
+def process_md(file_path):
     try:
-        with open(f,'r',encoding='utf-8') as fh:
-            content = fh.read()
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
     except UnicodeDecodeError:
-        continue
+        return
 
     title_m = re.search(r'^\s*#\s*(.+)', content, re.MULTILINE)
-    title = title_m.group(1).strip() if title_m else os.path.splitext(f)[0]
+    title = title_m.group(1).strip() if title_m else os.path.splitext(os.path.basename(file_path))[0]
 
     icon_match = re.search(r'^[ \t]*icon:[ \t]*["\']?(.+?)["\']?\s*$', content, re.MULTILINE)
     icon = icon_match.group(1).strip() if icon_match else None
@@ -94,28 +92,37 @@ for f in md_files:
                 h = title_m.group(0)
                 new_content = content.replace(h, h + f'\n\n<div class="embed-placeholder" data-embed-src="{embed_url}"></div>\n', 1)
                 try:
-                    with open(f,'w',encoding='utf-8') as fh:
+                    with open(file_path, 'w', encoding='utf-8') as fh:
                         fh.write(new_content)
                     content = new_content
                 except Exception:
                     pass
 
+    rel_path = os.path.relpath(file_path, '.')
     if icon:
-        summary.append(f'* [<i class="fa-solid fa-{icon}"></i> {title}]({f})')
-        icon_map[f] = {'icon': icon}
+        summary.append(f'* [<i class="fa-solid fa-{icon}"></i> {title}]({rel_path})')
+        icon_map[rel_path] = {'icon': icon}
         if embed_url:
-            icon_map[f]['video'] = embed_url
+            icon_map[rel_path]['video'] = embed_url
     else:
-        summary.append(f'* [{title}]({f})')
+        summary.append(f'* [{title}]({rel_path})')
         if embed_url:
-            icon_map[f] = {'video': embed_url}
+            icon_map[rel_path] = {'video': embed_url}
 
-with open('SUMMARY.md','w',encoding='utf-8') as fh:
-    fh.write('\n'.join(summary))
+# Walk through all folders
+for root, dirs, files in os.walk('.'):
+    files.sort()
+    for file in files:
+        if file.endswith('.md') and file not in ('README.md','SUMMARY.md'):
+            process_md(os.path.join(root, file))
+
+# Save SUMMARY.md
+with open('SUMMARY.md','w', encoding='utf-8') as f:
+    f.write('\n'.join(summary))
 
 os.makedirs('assets', exist_ok=True)
-with open(os.path.join('assets','icon-map.json'),'w',encoding='utf-8') as fh:
-    json.dump(icon_map, fh, indent=2)
+with open(os.path.join('assets','icon-map.json'),'w', encoding='utf-8') as f:
+    json.dump(icon_map, f, indent=2)
 EOF
 
       # 6. Create book.json
