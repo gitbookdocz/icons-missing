@@ -27,7 +27,7 @@ jobs:
           find . -name "*.md" -type f -print0 | xargs -0 sed -i -E 's/\{\% hint.*\%\}/> **Note:** /g'
           find . -name "*.md" -type f -print0 | xargs -0 sed -i -E 's/\{\% endhint.*\%\}//g'
 
-      - name: Generate SUMMARY.md with icons
+      - name: Generate SUMMARY.md with icons and embed placeholders
         run: |
           python3 <<'EOF'
 import os, re, json
@@ -45,6 +45,20 @@ fixes = {
     'checkmark': 'check',
     'cross': 'xmark'
 }
+
+def to_embed(url):
+    if not url:
+        return None
+    if 'youtu.be/' in url:
+        vid = url.rsplit('/',1)[1].split('?')[0]
+        return f'https://www.youtube.com/embed/{vid}'
+    m = re.search(r'v=([^&]+)', url)
+    if 'youtube.com/watch' in url and m:
+        return f'https://www.youtube.com/embed/{m.group(1)}'
+    if 'vimeo.com/' in url and 'player.vimeo.com' not in url:
+        vid = url.rsplit('/',1)[1].split('?')[0]
+        return f'https://player.vimeo.com/video/{vid}'
+    return url
 
 for f in md_files:
     if f in ('README.md','SUMMARY.md'):
@@ -65,17 +79,37 @@ for f in md_files:
         if icon in fixes:
             icon = fixes[icon]
 
+    # Video or iframe link detection
+    video_match = re.search(r'^[ \t]*video:[ \t]*["\']?(.+?)["\']?\s*$', content, re.MULTILINE)
+    iframe_match = re.search(r'^[ \t]*iframe:[ \t]*["\']?(.+?)["\']?\s*$', content, re.MULTILINE)
+    embed_url = None
+    if video_match or iframe_match:
+        embed_url = to_embed(video_match.group(1) if video_match else iframe_match.group(1))
+        if embed_url and '<iframe' not in content:
+            if title_m:
+                h = title_m.group(0)
+                new_content = content.replace(h, h + f'\n\n<div class="embed-placeholder" data-embed-src="{embed_url}"></div>\n', 1)
+                try:
+                    with open(f,'w',encoding='utf-8') as fh:
+                        fh.write(new_content)
+                    content = new_content
+                except Exception:
+                    pass
+
     # Add to summary
     if icon:
         summary.append(f'* [<i class="fa-solid fa-{icon}"></i> {title}]({f})')
-        icon_map[f] = icon
+        icon_map[f] = {'icon': icon}
+        if embed_url:
+            icon_map[f]['video'] = embed_url
     else:
         summary.append(f'* [{title}]({f})')
+        if embed_url:
+            icon_map[f] = {'video': embed_url}
 
 with open('SUMMARY.md','w',encoding='utf-8') as fh:
     fh.write('\n'.join(summary))
 
-# Save icon map for reference
 os.makedirs('assets', exist_ok=True)
 with open(os.path.join('assets','icon-map.json'),'w',encoding='utf-8') as fh:
     json.dump(icon_map, fh, indent=2)
@@ -114,7 +148,10 @@ EOF
       - name: Build GitBook
         run: |
           gitbook build
-          # Inject FontAwesome CDN fallback in HTML
+          # Replace embed placeholders with actual iframes
+          find _book -name "*.html" -type f -exec sed -i -E \
+            's#<div class="embed-placeholder" data-embed-src="([^"]+)"></div>#<iframe src="\1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="width:100%;height:360px;"></iframe>#g' {} \;
+          # Inject FontAwesome CDN fallback
           find _book -name "*.html" -type f -exec sed -i \
             's#</head>#<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer"/></head>#' {} \;
 
